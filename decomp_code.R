@@ -53,7 +53,6 @@ m7 <- glmmTMB(rv ~ 1 + weeks + weeks:dmg*lu + (weeks-1|site) + (weeks-1|leaf) + 
 models.fm <- list(m0,m1,m2,m3,m4,m5,m6,m7)
 map(models.fm, summary)
 summary(m4)
-m4 <- glmmTMB(rv ~ 1 + weeks + weeks:dmg + weeks:ha + weeks:lu + (weeks|site) + (weeks|leaf) + (weeks|leaf.origin), fm, family=beta_family(link = "logit"))
 
 #Fig. 2a) caterpillar plot for FM bags
 
