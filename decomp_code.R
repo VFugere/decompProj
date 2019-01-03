@@ -3,7 +3,7 @@
 
 rm(list=ls())
 par(family='sans')
-options(scipen=999)
+# options(scipen=999)
 
 library(tidyverse)
 library(RColorBrewer)
@@ -15,10 +15,10 @@ cols <- brewer.pal(3, 'Dark2')
 
 #load and format data
 
-data <- read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/leafbags.csv')
+data <- read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/decompProj/leafbags.csv')
 data$days <- data$weeks*7
 
-dmg <-  read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/caterpillar.csv') %>%
+dmg <-  read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/decompProj/caterpillar.csv') %>%
   select(leaf.nb,damage.area)
 
 data <- inner_join(data, dmg, by = 'leaf.nb')
@@ -53,6 +53,7 @@ m7 <- glmmTMB(rv ~ 1 + weeks + weeks:dmg*lu + (weeks-1|site) + (weeks-1|leaf) + 
 models.fm <- list(m0,m1,m2,m3,m4,m5,m6,m7)
 map(models.fm, summary)
 summary(m4)
+m4 <- glmmTMB(rv ~ 1 + weeks + weeks:dmg + weeks:ha + weeks:lu + (weeks|site) + (weeks|leaf) + (weeks|leaf.origin), fm, family=beta_family(link = "logit"))
 
 #Fig. 2a) caterpillar plot for FM bags
 
