@@ -16,7 +16,6 @@ cols <- brewer.pal(3, 'Dark2')
 #load and format data
 
 data <- read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/decompProj/leafbags.csv')
-data$days <- data$weeks*7
 
 dmg <-  read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/decompProj/caterpillar.csv') %>%
   select(leaf.nb,damage.area)
@@ -31,7 +30,8 @@ data$prop.decomp <- 1-data$prop
 data$rv <- 1-(data$prop*(nrow(data)-1)+0.5) / nrow(data)
 #1- because we want prop decomposed instead of prop left
 
-data$dmg <- rescale(data$damage.area, c(0,1)) #so that range is similar to factors below
+#data$dmg <- rescale(data$damage.area, c(0,1)) #so that range is similar to factors below
+data$dmg <- data$damage.area
 data$lu <- as.factor(data$land.use)
 data$lu <- relevel(data$lu, ref = 'forest')
 data$ha <- as.factor(data$leaf.deployment)
