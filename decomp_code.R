@@ -15,12 +15,12 @@ cols <- brewer.pal(3, 'Dark2')
 
 #load and format data
 
-data <- read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/decompProj/leafbags.csv')
+data <- read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/decompProj/leafbags.csv') %>% filter(!is.na(rep.nb))
 
 dmg <-  read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/decompProj/caterpillar.csv') %>%
   select(leaf.nb,damage.area)
 
-data <- inner_join(data, dmg, by = 'leaf.nb')
+data <- inner_join(data, dmg, by = 'leaf.nb') #loosing one replicate - the leaf fragment with a missing picture
 rm(dmg)
 
 data$prop <- data$prct.mass.rem/100
@@ -30,28 +30,40 @@ data$prop.decomp <- 1-data$prop
 data$rv <- 1-(data$prop*(nrow(data)-1)+0.5) / nrow(data)
 #1- because we want prop decomposed instead of prop left
 
-#data$dmg <- rescale(data$damage.area, c(0,1)) #so that range is similar to factors below
-data$dmg <- data$damage.area
+#data$dmg <- scale(data$damage.area)
+data$dmg <- rescale(data$damage.area, c(0,1))
 data$lu <- as.factor(data$land.use)
 data$lu <- relevel(data$lu, ref = 'forest')
+#data$lu <- scale(as.numeric(data$lu))
 data$ha <- as.factor(data$leaf.deployment)
 data$ha <- relevel(data$ha, ref = 'home')
+#data$ha <- scale(as.numeric(data$ha))
+data$wks <- scale(data$weeks)
+data$wtr <- as.factor(data$watershed)
 
 ## fine mesh bags
 
 fm <- filter(data, mesh.type == 'fine')
 
-m0 <- glmmTMB(rv ~ 1 + weeks + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m1 <- glmmTMB(rv ~ 1 + weeks + weeks:lu + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m2 <- glmmTMB(rv ~ 1 + weeks + weeks:ha + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m3 <- glmmTMB(rv ~ 1 + weeks + weeks:dmg + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m4 <- glmmTMB(rv ~ 1 + weeks + weeks:dmg + weeks:ha + weeks:lu + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m5 <- glmmTMB(rv ~ 1 + weeks + weeks:ha*lu + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m6 <- glmmTMB(rv ~ 1 + weeks + weeks:ha*dmg + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m7 <- glmmTMB(rv ~ 1 + weeks + weeks:dmg*lu + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), fm, family=beta_family(link = "logit"))
+m0 <- glmmTMB(rv ~ 1 + wks + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
+m1 <- glmmTMB(rv ~ 1 + wks + wks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
+m2 <- glmmTMB(rv ~ 1 + wks + wks:ha + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
+m3 <- glmmTMB(rv ~ 1 + wks + wks:dmg + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
+m4 <- glmmTMB(rv ~ 1 + wks + wks:dmg + wks:ha + wks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
+m5 <- glmmTMB(rv ~ 1 + wks + wks:ha*lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
+m6 <- glmmTMB(rv ~ 1 + wks + wks:ha*dmg + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
+m7 <- glmmTMB(rv ~ 1 + wks + wks:dmg*lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
 
 models.fm <- list(m0,m1,m2,m3,m4,m5,m6,m7)
 map(models.fm, summary)
+
+f0 <- formula(rv ~ 1 + wks + watershed + dmg + ha + lu)
+f1 <- update(f0, . ~ wks * .)
+f2 <- update(f1, . ~ . + (wks|site) + (wks|leaf) + (wks|leaf.origin))
+m4 <- glmmTMB(f2, fm, family=beta_family(link = "logit"))
+
+m4 <- glmmTMB(rv ~ 0 + weeks + weeks:wtr + weeks:dmg + weeks:ha + weeks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
+
 summary(m4)
 
 #Fig. 2a) caterpillar plot for FM bags
@@ -152,14 +164,14 @@ legend('topright',bty='n',legend=expression(italic('day 28')))
 
 cm <- filter(data, mesh.type == 'coarse')
 
-m0 <- glmmTMB(rv ~ 1 + weeks + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m1 <- glmmTMB(rv ~ 1 + weeks + weeks:lu + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m2 <- glmmTMB(rv ~ 1 + weeks + weeks:ha + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m3 <- glmmTMB(rv ~ 1 + weeks + weeks:dmg + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m4 <- glmmTMB(rv ~ 1 + weeks + weeks:dmg + weeks:ha + weeks:lu + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m5 <- glmmTMB(rv ~ 1 + weeks + weeks:ha*lu + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m6 <- glmmTMB(rv ~ 1 + weeks + weeks:ha*dmg + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m7 <- glmmTMB(rv ~ 1 + weeks + weeks:dmg*lu + (weeks-1|site) + (weeks-1|leaf) + (weeks-1|leaf.origin), cm, family=beta_family(link = "logit"))
+m0 <- glmmTMB(rv ~ 1 + wks + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
+m1 <- glmmTMB(rv ~ 1 + wks + wks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
+m2 <- glmmTMB(rv ~ 1 + wks + wks:ha + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
+m3 <- glmmTMB(rv ~ 1 + wks + wks:dmg + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
+m4 <- glmmTMB(rv ~ 1 + wks + wks:dmg + wks:ha + wks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
+m5 <- glmmTMB(rv ~ 1 + wks + wks:ha*lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
+m6 <- glmmTMB(rv ~ 1 + wks + wks:ha*dmg + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
+m7 <- glmmTMB(rv ~ 1 + wks + wks:dmg*lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
 
 models.cm <- list(m0,m1,m2,m3,m4,m5,m6,m7)
 map(models.cm, summary)
