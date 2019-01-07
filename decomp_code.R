@@ -2,15 +2,16 @@
 ### Vincent Fugère, 2019
 
 rm(list=ls())
-source_url('https://raw.githubusercontent.com/VFugere/Rfuncs/master/utils.R')
 
 library(tidyverse)
 library(RColorBrewer)
 library(glmmTMB)
 library(magrittr)
 library(plotrix)
+library(party)
 library(devtools)
 source_url('https://raw.githubusercontent.com/VFugere/Rfuncs/master/vif.R')
+source_url('https://raw.githubusercontent.com/VFugere/Rfuncs/master/utils.R')
 
 cols <- brewer.pal(3, 'Dark2')
 
@@ -31,25 +32,45 @@ data$prop.decomp <- 1-data$prop
 data$rv <- 1-(data$prop*(nrow(data)-1)+0.5) / nrow(data)
 #1- because we want prop decomposed instead of prop left
 
-data$dmg <- scale(data$damage.area)
-#data$dmg <- rescale(data$damage.area, c(0,1))
+data$dmg <- rescale(data$damage.area, c(0,1))
 data$lu <- as.factor(data$land.use)
 data$lu <- relevel(data$lu, ref = 'forest')
-data$lu <- scale(as.numeric(data$lu))
 data$ha <- as.factor(data$leaf.deployment)
 data$ha <- relevel(data$ha, ref = 'home')
-data$ha <- scale(as.numeric(data$ha))
-data$wks <- scale(data$weeks)
+data$wks <- rescale(data$weeks, c(0,1))
 data$wtr <- as.factor(data$watershed)
-data$wtr <- scale(as.numeric(data$wtr))
 
 #collinearity
 
-corvif(dat[,c('s.yr','snseqs','lu','salat','slong','sc.pop')])
+corvif(data[,c('dmg','lu','ha','wks','wtr')])
+
+#model
+
+f0 <- formula(rv ~ 1 + wks + wtr + dmg + ha + lu)
+f1 <- update(f0, . ~ wks * .)
+f2 <- update(f1, . ~ . + (1|site) + (1|leaf) + (1|leaf.origin))
 
 ## fine mesh bags
 
 fm <- filter(data, mesh.type == 'fine')
+
+#predictors at the end of experiment on week 4
+fm.end <- filter(fm, weeks == 4)
+fit <- ctree(rv ~ dmg+lu+ha+weeks+wtr, data = fm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
+plot(fit, inner_panel=node_inner(fit,pval = T),
+     terminal_panel=node_boxplot(fit, width=0.4,fill='white',ylines=3,id=F))
+mod.end <- glmmTMB(rv ~ 1 + dmg + wtr + ha + lu + (1|site) + (1|leaf) + (1|leaf.origin), fm.end, family=beta_family(link = "logit"))
+summary(mod.end)
+
+mod <- glmmTMB(f2, fm, family=beta_family(link = "logit"))
+summary(mod)
+
+mod <- glmmTMB(f2, cm, family=beta_family(link = "logit"))
+summary(mod)
+
+
+m0 <- glmmTMB(rv ~ 1 + wks + (wks|site) + (1|leaf) + (1|leaf.origin), fm, family=beta_family(link = "logit"))
+m1 <- glmmTMB(rv ~ 1 + wks*ha + (wks|site) + (1|leaf) + (1|leaf.origin), fm, family=beta_family(link = "logit"))
 
 m0 <- glmmTMB(rv ~ 1 + wks + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
 m1 <- glmmTMB(rv ~ 1 + wks + wks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
@@ -170,6 +191,14 @@ legend('topright',bty='n',legend=expression(italic('day 28')))
 #### coarse mesh bags ####
 
 cm <- filter(data, mesh.type == 'coarse')
+
+# #predictors at the end of experiment on week 4
+# cm.end <- filter(cm, weeks == 4)
+# fit <- ctree(rv ~ dmg+lu+ha+weeks+wtr, data = cm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
+# plot(fit, inner_panel=node_inner(fit,pval = T),
+#      terminal_panel=node_boxplot(fit, width=0.4,fill='white',ylines=3,id=F))
+# mod.end <- glmmTMB(rv ~ 1 + dmg + wtr + ha + lu + (1|site) + (1|leaf) + (1|leaf.origin), cm.end, family=beta_family(link = "logit"))
+# summary(mod.end)
 
 m0 <- glmmTMB(rv ~ 1 + wks + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
 m1 <- glmmTMB(rv ~ 1 + wks + wks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
