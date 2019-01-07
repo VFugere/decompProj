@@ -13,9 +13,9 @@ library(devtools)
 source_url('https://raw.githubusercontent.com/VFugere/Rfuncs/master/vif.R')
 source_url('https://raw.githubusercontent.com/VFugere/Rfuncs/master/utils.R')
 
-cols <- brewer.pal(3, 'Dark2')
+cols <- brewer.pal(5, 'Dark2')
 
-#load and format data
+#### load and format data ####
 
 data <- read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/decompProj/leafbags.csv') %>% filter(!is.na(rep.nb))
 
@@ -24,6 +24,10 @@ dmg <-  read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/decompPro
 
 data <- inner_join(data, dmg, by = 'leaf.nb') #loosing one replicate - the leaf fragment with a missing picture
 rm(dmg)
+
+data$leaf.lu <- 'forest'
+data$leaf.lu[data$leaf.origin %in% c('miranga','bugembe')] <- 'farm'
+data$leaf.lu <- as.factor(data$leaf.lu)
 
 data$prop <- data$prct.mass.rem/100
 data$prop.decomp <- 1-data$prop
@@ -39,99 +43,64 @@ data$ha <- as.factor(data$leaf.deployment)
 data$ha <- relevel(data$ha, ref = 'home')
 data$wks <- rescale(data$weeks, c(0,1))
 data$wtr <- as.factor(data$watershed)
+data$lf.lu <- relevel(data$leaf.lu, ref = 'forest')
+
+#### setting up models ####
 
 #collinearity
 
-corvif(data[,c('dmg','lu','ha','wks','wtr')])
+corvif(data[,c('dmg','lu','ha','wks','wtr','lf.lu')])
 
-#model
+#model with time
 
-f0 <- formula(rv ~ 1 + wks + wtr + dmg + ha + lu)
+f0 <- formula(rv ~ 1 + wks + wtr + dmg + ha + lu + lf.lu)
 f1 <- update(f0, . ~ wks * .)
-f2 <- update(f1, . ~ . + (1|site) + (1|leaf) + (1|leaf.origin))
+f2 <- update(f1, . ~ . + (wks|site) + (wks|leaf.origin/leaf))
 
-## fine mesh bags
+#model with final time point only
+
+fx <- formula(rv ~ 1 + dmg + wtr + ha + lu + lf.lu) 
+fx.i <- update(fx, . ~ .:.)
+fx <- update(fx, . ~ . + (1|site) + (1|leaf.origin/leaf))
+fx.i <- update(fx.i, . ~ .  + (1|site) + (1|leaf.origin/leaf)) #can't fit this model, not enough data
+
+#### models ####
 
 fm <- filter(data, mesh.type == 'fine')
+cm <- filter(data, mesh.type == 'coarse')
 
-#predictors at the end of experiment on week 4
+ts.mod.fm <- glmmTMB(f2, fm, family=beta_family(link = "logit"))
+summary(ts.mod.fm)
+
+ts.mod.cm <- glmmTMB(f2, cm, family=beta_family(link = "logit"))
+summary(ts.mod.cm)
+
 fm.end <- filter(fm, weeks == 4)
-fit <- ctree(rv ~ dmg+lu+ha+weeks+wtr, data = fm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
-plot(fit, inner_panel=node_inner(fit,pval = T),
-     terminal_panel=node_boxplot(fit, width=0.4,fill='white',ylines=3,id=F))
-mod.end <- glmmTMB(rv ~ 1 + dmg + wtr + ha + lu + (1|site) + (1|leaf) + (1|leaf.origin), fm.end, family=beta_family(link = "logit"))
-summary(mod.end)
+cm.end <- filter(cm, weeks == 4)
 
-mod <- glmmTMB(f2, fm, family=beta_family(link = "logit"))
-summary(mod)
+# #regression trees
+# fit.fm <- ctree(rv ~ dmg+lu+ha+wks+wtr+leaf.lu+lf.lu, data = fm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
+# plot(fit.fm, inner_panel=node_inner(fit.fm,pval = T),
+#      terminal_panel=node_boxplot(fit.fm, width=0.4,fill='white',ylines=3,id=F))
+# fit.cm <- ctree(rv ~ dmg+lu+ha+wks+wtr+leaf.lu+lf.lu, data = cm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
+# plot(fit.cm, inner_panel=node_inner(fit.cm,pval = T),
+#      terminal_panel=node_boxplot(fit.cm, width=0.4,fill='white',ylines=3,id=F))
+# #the only thing that matters if land use for CM bags
 
-mod <- glmmTMB(f2, cm, family=beta_family(link = "logit"))
-summary(mod)
+t4.mod.fm <- glmmTMB(fx, fm.end, family=beta_family(link = "logit"))
+summary(t4.mod.fm)
 
+t4.mod.cm <- glmmTMB(fx, cm.end, family=beta_family(link = "logit"))
+summary(t4.mod.cm)
 
-m0 <- glmmTMB(rv ~ 1 + wks + (wks|site) + (1|leaf) + (1|leaf.origin), fm, family=beta_family(link = "logit"))
-m1 <- glmmTMB(rv ~ 1 + wks*ha + (wks|site) + (1|leaf) + (1|leaf.origin), fm, family=beta_family(link = "logit"))
-
-m0 <- glmmTMB(rv ~ 1 + wks + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m1 <- glmmTMB(rv ~ 1 + wks + wks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m2 <- glmmTMB(rv ~ 1 + wks + wks:ha + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m3 <- glmmTMB(rv ~ 1 + wks + wks:dmg + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m4 <- glmmTMB(rv ~ 1 + wks + wks:dmg + wks:ha + wks:lu + (wks|site) + (wks|leaf) + (wks|leaf.origin), fm, family=beta_family(link = "logit"))
-m5 <- glmmTMB(rv ~ 1 + wks + wks:ha*lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m6 <- glmmTMB(rv ~ 1 + wks + wks:ha*dmg + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m7 <- glmmTMB(rv ~ 1 + wks + wks:dmg*lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-
-models.fm <- list(m0,m1,m2,m3,m4,m5,m6,m7)
-map(models.fm, summary)
-
-f0 <- formula(rv ~ 1 + wks + dmg + ha + lu)
-f1 <- update(f0, . ~ wks * .)
-f2 <- update(f1, . ~ . + (wks|site) + (1|leaf) + (1|leaf.origin))
-m4 <- glmmTMB(f2, fm, family=beta_family(link = "logit"))
-
-m4 <- glmmTMB(rv ~ wks + wks: + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-
-m4 <- glmmTMB(rv ~ 1 + wks + wks:dmg + wks:ha + wks:lu + (wks|site) + (1|leaf) + (1|leaf.origin), fm, family=beta_family(link = "logit"))
-summary(m4)
-
-#Fig. 2a) caterpillar plot for FM bags
-
-#getting coefs
-coefs <- rownames_to_column(as.data.frame(summary(m4)$coefficients[1])) %>%
-  rename(coef = rowname, value = cond.Estimate, se = cond.Std..Error) %>% select(coef:se) %>%
-  filter(coef != '(Intercept)', coef != 'weeks')
-coefs %<>% mutate('lwr' = value-1.96*se, 'upr' = value+1.96*se)
-
-xmin <- min(coefs$lwr)
-xmax <- max(coefs$upr)
+#### Figure 2 ####
 
 pdf('~/Desktop/Fig2.pdf',width=7,height = 3.8,pointsize = 8)
+layout(rbind(c(1,2,3,4,4),c(5,6,7,8,8)))
 
-layout(rbind(c(1,1,2,3,4),c(5,5,6,7,8)))
+## top panels : fine mesh
 
-par(mar=c(4,7,1,1),cex=1)
-
-plot(0,type='n',yaxt='n',xaxt='n',cex.axis=1,ann=F,bty='l',xlim=c(xmin,xmax),ylim=c(0.5,3.5))
-axis(2,cex.axis=1,lwd=0,lwd.ticks=0,at=1:3,labels = rev(c('farm vs. forest','away vs. home','leaf damage')),las=1)
-abline(v=0,lty=2,lwd=1)
-title(xlab='parameter estimate')
-axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
-for(w in 1:3){
-  pt <- coefs[w,'value']
-  lwr <- coefs[w,'lwr']
-  upr <- coefs[w,'upr']
-  if(0 < upr & 0 > lwr){
-    alph <- 0.3
-  } else {
-    alph <- 1
-  }
-  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(rev(cols)[w],alph),lwd=3)
-  points(x=pt,y=w,pch=16,col=alpha(rev(cols)[w],alph),cex=2)
-}
-legend('topright',bty='n',fill=0,border=0,legend=expression(italic('fine mesh')))
-#legend('topright',bty='n',legend = '(a)', cex =1.2)
-
-par(mar=c(4,4,1,1))
+par(mar=c(4,4,1,1),cex=1)
 
 plot(prop.decomp~weeks,fm,type='n',yaxt='n',xaxt='n',xlim=c(1,4),ylim=range(fm$prop.decomp),ann=F,bty='l')
 title(xlab='days in stream')
@@ -152,7 +121,7 @@ for(i in 1:2){
 }
 rm(data.tmp,i)
 legend('topleft',bty='n',legend = c('forest','farm'), lty=1, col=rev(coltmp),lwd=2,seg.len = 0.8)
-#legend('topright',bty='n',legend = '(b)', cex =1.2)
+legend('topright',bty='n',legend = '(a)', cex =1.2)
 
 plot(prop.decomp~weeks,fm,type='n',yaxt='n',xaxt='n',xlim=c(1,4),ylim=range(fm$prop.decomp),ann=F,bty='l')
 title(xlab='days in stream')
@@ -173,7 +142,6 @@ for(i in 1:2){
 }
 rm(data.tmp,i)
 legend('topleft',bty='n',legend = c('home','away'), lty=1, col=rev(coltmp),lwd=2,seg.len = 0.8)
-#legend('topright',bty='n',legend = '(c)', cex =1.2)
 
 tp4 <- subset(fm, weeks == 4)
 tp4$damage.area <- tp4$damage.area*100
@@ -182,55 +150,27 @@ title(xlab='leaf damage (%)')
 axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
 title(ylab='proportion decomposed')
 axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,1,length.out = 5),labels=seq(0,1,length.out = 5))
-#points(prop.decomp~damage.area,subset(tp4, weeks == 3),col=alpha(1,0.5),pch=16)
 points(prop.decomp~damage.area,tp4,col=alpha(cols[3],0.5),pch=16)
-#legend('topright',bty='n',legend = c('week 3','week 4'), pch=15, col=c(1,cols[3]))
 legend('topright',bty='n',legend=expression(italic('day 28')))
-#legend('topright',bty='n',legend = '(d)', cex =1.2)
-
-#### coarse mesh bags ####
-
-cm <- filter(data, mesh.type == 'coarse')
-
-# #predictors at the end of experiment on week 4
-# cm.end <- filter(cm, weeks == 4)
-# fit <- ctree(rv ~ dmg+lu+ha+weeks+wtr, data = cm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
-# plot(fit, inner_panel=node_inner(fit,pval = T),
-#      terminal_panel=node_boxplot(fit, width=0.4,fill='white',ylines=3,id=F))
-# mod.end <- glmmTMB(rv ~ 1 + dmg + wtr + ha + lu + (1|site) + (1|leaf) + (1|leaf.origin), cm.end, family=beta_family(link = "logit"))
-# summary(mod.end)
-
-m0 <- glmmTMB(rv ~ 1 + wks + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m1 <- glmmTMB(rv ~ 1 + wks + wks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m2 <- glmmTMB(rv ~ 1 + wks + wks:ha + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m3 <- glmmTMB(rv ~ 1 + wks + wks:dmg + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m4 <- glmmTMB(rv ~ 1 + wks + wks:dmg + wks:ha + wks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m5 <- glmmTMB(rv ~ 1 + wks + wks:ha*lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m6 <- glmmTMB(rv ~ 1 + wks + wks:ha*dmg + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-m7 <- glmmTMB(rv ~ 1 + wks + wks:dmg*lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), cm, family=beta_family(link = "logit"))
-
-models.cm <- list(m0,m1,m2,m3,m4,m5,m6,m7)
-map(models.cm, summary)
-summary(m4)
-
-#Fig. 2a) caterpillar plot for cm bags
 
 #getting coefs
-coefs <- rownames_to_column(as.data.frame(summary(m4)$coefficients[1])) %>%
+coefs <- rownames_to_column(as.data.frame(summary(t4.mod.fm)$coefficients[1])) %>%
   rename(coef = rowname, value = cond.Estimate, se = cond.Std..Error) %>% select(coef:se) %>%
-  filter(coef != '(Intercept)', coef != 'weeks')
+  filter(coef != '(Intercept)')
 coefs %<>% mutate('lwr' = value-1.96*se, 'upr' = value+1.96*se)
+coefs <- coefs[c(2,5,1,3,4),]
 
 xmin <- min(coefs$lwr)
 xmax <- max(coefs$upr)
 
-par(mar=c(4,7,1,1))
-plot(0,type='n',yaxt='n',xaxt='n',cex.axis=1,ann=F,bty='l',xlim=c(xmin,xmax),ylim=c(0.5,3.5))
-axis(2,cex.axis=1,lwd=0,lwd.ticks=0,at=1:3,labels = rev(c('farm vs. forest','away vs. home','leaf damage')),las=1)
+par(mar=c(4,7,1,1),cex=1)
+
+plot(0,type='n',yaxt='n',xaxt='n',cex.axis=1,ann=F,bty='l',xlim=c(-6,2),ylim=c(0.5,5.5))
+axis(2,cex.axis=1,lwd=0,lwd.ticks=0,at=1:5,labels = rev(c('farm vs. forest','away vs. home','leaf damage','leaf land use','watershed')),las=1)
 abline(v=0,lty=2,lwd=1)
 title(xlab='parameter estimate')
 axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
-for(w in 1:3){
+for(w in 1:5){
   pt <- coefs[w,'value']
   lwr <- coefs[w,'lwr']
   upr <- coefs[w,'upr']
@@ -242,8 +182,9 @@ for(w in 1:3){
   segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(rev(cols)[w],alph),lwd=3)
   points(x=pt,y=w,pch=16,col=alpha(rev(cols)[w],alph),cex=2)
 }
-legend('topright',bty='n',fill=0,border=0,legend=expression(italic('coarse mesh')))
-#legend('topright',bty='n',legend = '(b)', cex =1.2)
+legend('topright',box.col=0,box.lwd=0,legend=expression(italic('fine mesh')))
+
+## bottom panels : coarse mesh
 
 par(mar=c(4,4,1,1))
 
@@ -265,8 +206,7 @@ for(i in 1:2){
   lines(y ~ x, plot.data, lwd=2, col = alpha(coltmp[i],0.8))
 }
 rm(data.tmp,i)
-#legend('topleft',bty='n',legend = c('forest','farm'), lty=1, col=rev(coltmp),lwd=2,seg.len = 0.5)
-#legend('topright',bty='n',legend = '(f)', cex =1.2)
+legend('topright',bty='n',legend = '(b)', cex =1.2)
 
 plot(prop.decomp~weeks,cm,type='n',yaxt='n',xaxt='n',xlim=c(1,4),ylim=range(cm$prop.decomp),ann=F,bty='l')
 title(xlab='days in stream')
@@ -286,8 +226,6 @@ for(i in 1:2){
   lines(y ~ x, plot.data, lwd=2, col = alpha(coltmp[i],0.8))
 }
 rm(data.tmp,i)
-#legend('topleft',bty='n',legend = c('home','away'), lty=1, col=rev(coltmp),lwd=2,seg.len = 0.5)
-#legend('topright',bty='n',legend = '(g)', cex =1.2)
 
 tp4 <- subset(cm, weeks == 4)
 tp4$damage.area <- tp4$damage.area*100
@@ -296,10 +234,36 @@ title(xlab='leaf damage (%)')
 axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
 title(ylab='proportion decomposed')
 axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,1,length.out = 5),labels=seq(0,1,length.out = 5))
-#points(prop.decomp~damage.area,subset(tp4, weeks == 3),col=alpha(1,0.5),pch=16)
 points(prop.decomp~damage.area,tp4,col=alpha(cols[3],0.5),pch=16)
-#legend('topright',bty='n',legend = c('week 3','week 4'), pch=15, col=c(1,cols[3]))
-#legend('topright',bty='n',legend=expression(italic('day 28')))
-#legend('topright',bty='n',legend = '(h)', cex =1.2)
+
+#getting coefs
+coefs <- rownames_to_column(as.data.frame(summary(t4.mod.cm)$coefficients[1])) %>%
+  rename(coef = rowname, value = cond.Estimate, se = cond.Std..Error) %>% select(coef:se) %>%
+  filter(coef != '(Intercept)') 
+coefs %<>% mutate('lwr' = value-1.96*se, 'upr' = value+1.96*se)
+coefs <- coefs[c(2,5,1,3,4),]
+
+xmin <- min(coefs$lwr)
+xmax <- max(coefs$upr)
+
+par(mar=c(4,7,1,1))
+plot(0,type='n',yaxt='n',xaxt='n',cex.axis=1,ann=F,bty='l',xlim=c(-6,2),ylim=c(0.5,5.5))
+axis(2,cex.axis=1,lwd=0,lwd.ticks=0,at=1:5,labels = rev(c('farm vs. forest','away vs. home','leaf damage','leaf land use','watershed')),las=1)
+abline(v=0,lty=2,lwd=1)
+title(xlab='parameter estimate')
+axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
+for(w in 1:5){
+  pt <- coefs[w,'value']
+  lwr <- coefs[w,'lwr']
+  upr <- coefs[w,'upr']
+  if(0 < upr & 0 > lwr){
+    alph <- 0.3
+  } else {
+    alph <- 1
+  }
+  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(rev(cols)[w],alph),lwd=3)
+  points(x=pt,y=w,pch=16,col=alpha(rev(cols)[w],alph),cex=2)
+}
+legend('topright',box.lwd=0,box.col=0,legend=expression(italic('coarse mesh')))
 
 dev.off()
