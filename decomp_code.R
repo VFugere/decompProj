@@ -2,14 +2,15 @@
 ### Vincent Fugère, 2019
 
 rm(list=ls())
-par(family='sans')
-# options(scipen=999)
+source_url('https://raw.githubusercontent.com/VFugere/Rfuncs/master/utils.R')
 
 library(tidyverse)
 library(RColorBrewer)
 library(glmmTMB)
 library(magrittr)
 library(plotrix)
+library(devtools)
+source_url('https://raw.githubusercontent.com/VFugere/Rfuncs/master/vif.R')
 
 cols <- brewer.pal(3, 'Dark2')
 
@@ -30,16 +31,21 @@ data$prop.decomp <- 1-data$prop
 data$rv <- 1-(data$prop*(nrow(data)-1)+0.5) / nrow(data)
 #1- because we want prop decomposed instead of prop left
 
-#data$dmg <- scale(data$damage.area)
-data$dmg <- rescale(data$damage.area, c(0,1))
+data$dmg <- scale(data$damage.area)
+#data$dmg <- rescale(data$damage.area, c(0,1))
 data$lu <- as.factor(data$land.use)
 data$lu <- relevel(data$lu, ref = 'forest')
-#data$lu <- scale(as.numeric(data$lu))
+data$lu <- scale(as.numeric(data$lu))
 data$ha <- as.factor(data$leaf.deployment)
 data$ha <- relevel(data$ha, ref = 'home')
-#data$ha <- scale(as.numeric(data$ha))
+data$ha <- scale(as.numeric(data$ha))
 data$wks <- scale(data$weeks)
 data$wtr <- as.factor(data$watershed)
+data$wtr <- scale(as.numeric(data$wtr))
+
+#collinearity
+
+corvif(dat[,c('s.yr','snseqs','lu','salat','slong','sc.pop')])
 
 ## fine mesh bags
 
@@ -49,7 +55,7 @@ m0 <- glmmTMB(rv ~ 1 + wks + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), 
 m1 <- glmmTMB(rv ~ 1 + wks + wks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
 m2 <- glmmTMB(rv ~ 1 + wks + wks:ha + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
 m3 <- glmmTMB(rv ~ 1 + wks + wks:dmg + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
-m4 <- glmmTMB(rv ~ 1 + wks + wks:dmg + wks:ha + wks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
+m4 <- glmmTMB(rv ~ 1 + wks + wks:dmg + wks:ha + wks:lu + (wks|site) + (wks|leaf) + (wks|leaf.origin), fm, family=beta_family(link = "logit"))
 m5 <- glmmTMB(rv ~ 1 + wks + wks:ha*lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
 m6 <- glmmTMB(rv ~ 1 + wks + wks:ha*dmg + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
 m7 <- glmmTMB(rv ~ 1 + wks + wks:dmg*lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
@@ -57,13 +63,14 @@ m7 <- glmmTMB(rv ~ 1 + wks + wks:dmg*lu + (wks-1|site) + (wks-1|leaf) + (wks-1|l
 models.fm <- list(m0,m1,m2,m3,m4,m5,m6,m7)
 map(models.fm, summary)
 
-f0 <- formula(rv ~ 1 + wks + watershed + dmg + ha + lu)
+f0 <- formula(rv ~ 1 + wks + dmg + ha + lu)
 f1 <- update(f0, . ~ wks * .)
-f2 <- update(f1, . ~ . + (wks|site) + (wks|leaf) + (wks|leaf.origin))
+f2 <- update(f1, . ~ . + (wks|site) + (1|leaf) + (1|leaf.origin))
 m4 <- glmmTMB(f2, fm, family=beta_family(link = "logit"))
 
-m4 <- glmmTMB(rv ~ 0 + weeks + weeks:wtr + weeks:dmg + weeks:ha + weeks:lu + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
+m4 <- glmmTMB(rv ~ wks + wks: + (wks-1|site) + (wks-1|leaf) + (wks-1|leaf.origin), fm, family=beta_family(link = "logit"))
 
+m4 <- glmmTMB(rv ~ 1 + wks + wks:dmg + wks:ha + wks:lu + (wks|site) + (1|leaf) + (1|leaf.origin), fm, family=beta_family(link = "logit"))
 summary(m4)
 
 #Fig. 2a) caterpillar plot for FM bags
