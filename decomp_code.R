@@ -25,6 +25,8 @@ dmg <-  read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/decompPro
 data <- inner_join(data, dmg, by = 'leaf.nb') #loosing one replicate - the leaf fragment with a missing picture
 rm(dmg)
 
+data <- data %>% group_by(leaf) %>% mutate(avg.dmg = mean(damage.area)) %>% ungroup
+
 data$leaf.lu <- 'forest'
 data$leaf.lu[data$leaf.origin %in% c('miranga','bugembe')] <- 'farm'
 data$leaf.lu <- as.factor(data$leaf.lu)
@@ -44,12 +46,15 @@ data$ha <- relevel(data$ha, ref = 'home')
 data$wks <- rescale(data$weeks, c(0,1))
 data$wtr <- as.factor(data$watershed)
 data$lf.lu <- relevel(data$leaf.lu, ref = 'forest')
+data$lf.dmg <- rescale(data$avg.dmg, c(0,1))
 
 #### setting up models ####
 
 #collinearity
 
-corvif(data[,c('dmg','lu','ha','wks','wtr','lf.lu')])
+corvif(data[,c('dmg','lu','ha','wks','wtr','lf.lu','lf.dmg')]) 
+#fragment damage and leaf total damage are obviously correlated
+#will test both separately. Neither have an effect; chose fragment damage in final models because cleaner
 
 #model with time
 
@@ -78,14 +83,14 @@ summary(ts.mod.cm)
 fm.end <- filter(fm, weeks == 4)
 cm.end <- filter(cm, weeks == 4)
 
-# #regression trees
-# fit.fm <- ctree(rv ~ dmg+lu+ha+wks+wtr+leaf.lu+lf.lu, data = fm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
-# plot(fit.fm, inner_panel=node_inner(fit.fm,pval = T),
-#      terminal_panel=node_boxplot(fit.fm, width=0.4,fill='white',ylines=3,id=F))
-# fit.cm <- ctree(rv ~ dmg+lu+ha+wks+wtr+leaf.lu+lf.lu, data = cm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
-# plot(fit.cm, inner_panel=node_inner(fit.cm,pval = T),
-#      terminal_panel=node_boxplot(fit.cm, width=0.4,fill='white',ylines=3,id=F))
-# #the only thing that matters if land use for CM bags
+#regression trees
+fit.fm <- ctree(rv ~ dmg+lu+ha+wks+wtr+leaf.lu+lf.lu, data = fm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
+plot(fit.fm, inner_panel=node_inner(fit.fm,pval = T),
+     terminal_panel=node_boxplot(fit.fm, width=0.4,fill='white',ylines=3,id=F))
+fit.cm <- ctree(rv ~ dmg+lu+ha+wks+wtr+leaf.lu+lf.lu, data = cm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
+plot(fit.cm, inner_panel=node_inner(fit.cm,pval = T),
+     terminal_panel=node_boxplot(fit.cm, width=0.4,fill='white',ylines=3,id=F))
+#the only thing that matters if land use for CM bags
 
 t4.mod.fm <- glmmTMB(fx, fm.end, family=beta_family(link = "logit"))
 summary(t4.mod.fm)
@@ -95,7 +100,7 @@ summary(t4.mod.cm)
 
 #### Figure 2 ####
 
-pdf('~/Desktop/Fig2.pdf',width=7,height = 3.8,pointsize = 8)
+#pdf('~/Desktop/Fig2.pdf',width=7,height = 3.8,pointsize = 8)
 layout(rbind(c(1,2,3,4,4),c(5,6,7,8,8)))
 
 ## top panels : fine mesh
@@ -266,4 +271,4 @@ for(w in 1:5){
 }
 legend('topright',box.lwd=0,box.col=0,legend=expression(italic('coarse mesh')))
 
-dev.off()
+#dev.off()
