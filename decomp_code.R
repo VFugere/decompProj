@@ -80,6 +80,9 @@ summary(ts.mod.fm)
 ts.mod.cm <- glmmTMB(f2, cm, family=beta_family(link = "logit"))
 summary(ts.mod.cm)
 
+rownames_to_column(as.data.frame(summary(ts.mod.fm)$coefficients[1])) %>% write_csv(., '~/Desktop/fmmod.csv')
+rownames_to_column(as.data.frame(summary(ts.mod.cm)$coefficients[1])) %>% write_csv(., '~/Desktop/cmmod.csv')
+
 fm.end <- filter(fm, weeks == 4)
 cm.end <- filter(cm, weeks == 4)
 
