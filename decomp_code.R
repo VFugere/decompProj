@@ -25,7 +25,9 @@ dmg <-  read_csv('~/Google Drive/Recherche/PhD/manuscripts/caterpillar/decompPro
 data <- inner_join(data, dmg, by = 'leaf.nb') #loosing one replicate - the leaf fragment with a missing picture
 rm(dmg)
 
+#to conduct dmg analysis at whole-leaf or whole-tree level
 data <- data %>% group_by(leaf) %>% mutate(avg.dmg = mean(damage.area)) %>% ungroup
+data <- data %>% group_by(tree) %>% mutate(tree.avg.dmg = mean(damage.area)) %>% ungroup
 
 data$leaf.lu <- 'forest'
 data$leaf.lu[data$leaf.origin %in% c('miranga','bugembe')] <- 'farm'
@@ -47,27 +49,29 @@ data$wks <- rescale(data$weeks, c(0,1))
 data$wtr <- as.factor(data$watershed)
 data$lf.lu <- relevel(data$leaf.lu, ref = 'forest')
 data$lf.dmg <- rescale(data$avg.dmg, c(0,1))
+data$tree.dmg <- rescale(data$tree.avg.dmg, c(0,1))
 
 #### setting up models ####
 
 #collinearity
 
-corvif(data[,c('dmg','lu','ha','wks','wtr','lf.lu','lf.dmg')]) 
+corvif(data[,c('dmg','lu','ha','wks','wtr','lf.lu','lf.dmg','tree.dmg')]) 
 #fragment damage and leaf total damage are obviously correlated
-#will test both separately. Neither have an effect; chose fragment damage in final models because cleaner
+#also correlated with tree damage, and leaf land use
+#will test separately. No dmg var has an effect; chose fragment damage in final models because cleaner
 
 #model with time
 
 f0 <- formula(rv ~ 1 + wks + wtr + dmg + ha + lu + lf.lu)
 f1 <- update(f0, . ~ wks * .)
-f2 <- update(f1, . ~ . + (wks|site) + (wks|leaf.origin/leaf))
+f2 <- update(f1, . ~ . + (wks|site) + (wks|leaf.origin/tree/leaf))
 
 #model with final time point only
 
 fx <- formula(rv ~ 1 + dmg + wtr + ha + lu + lf.lu) 
 fx.i <- update(fx, . ~ .:.)
-fx <- update(fx, . ~ . + (1|site) + (1|leaf.origin/leaf))
-fx.i <- update(fx.i, . ~ .  + (1|site) + (1|leaf.origin/leaf)) #can't fit this model, not enough data
+fx <- update(fx, . ~ . + (1|site) + (1|leaf.origin/tree/leaf))
+fx.i <- update(fx.i, . ~ .  + (1|site) + (1|leaf.origin/tree/leaf)) #can't fit this model, not enough data
 
 #### models ####
 
@@ -101,20 +105,21 @@ summary(t4.mod.fm)
 t4.mod.cm <- glmmTMB(fx, cm.end, family=beta_family(link = "logit"))
 summary(t4.mod.cm)
 
+fm$prop.decomp <- fm$prop.decomp*100
+cm$prop.decomp <- cm$prop.decomp*100
+
 #### Figure 2 ####
 
-#pdf('~/Desktop/Fig2.pdf',width=7,height = 3.8,pointsize = 8)
-layout(rbind(c(1,2,3,4,4),c(5,6,7,8,8)))
+pdf('~/Desktop/Fig2.pdf',width=4.5,height = 3.5,pointsize = 8)
+par(mfrow=c(2,3),mar=c(4,4,1,1),cex=1)
 
-## top panels : fine mesh
-
-par(mar=c(4,4,1,1),cex=1)
+#fm
 
 plot(prop.decomp~weeks,fm,type='n',yaxt='n',xaxt='n',xlim=c(1,4),ylim=range(fm$prop.decomp),ann=F,bty='l')
 title(xlab='days in stream')
 axis(1,cex.axis=1,lwd=0,lwd.ticks=1,at=1:4,labels = seq(7,28,by=7))
-title(ylab='proportion decomposed')
-axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,1,length.out = 5),labels=seq(0,1,length.out = 5))
+title(ylab='% decomposed')
+axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,100,length.out = 5),labels=seq(0,100,length.out = 5))
 means <- aggregate(prop.decomp~weeks*land.use, fm, FUN = 'mean')
 se <- aggregate(prop.decomp~weeks*land.use, fm, FUN = 'sd')
 means$se <- 1.96*se$prop.decomp/sqrt(nrow(se))
@@ -134,8 +139,8 @@ legend('topright',bty='n',legend = '(a)', cex =1.2)
 plot(prop.decomp~weeks,fm,type='n',yaxt='n',xaxt='n',xlim=c(1,4),ylim=range(fm$prop.decomp),ann=F,bty='l')
 title(xlab='days in stream')
 axis(1,cex.axis=1,lwd=0,lwd.ticks=1,at=1:4,labels = seq(7,28,by=7))
-title(ylab='proportion decomposed')
-axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,1,length.out = 5),labels=seq(0,1,length.out = 5))
+title(ylab='% decomposed')
+axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,100,length.out = 5),labels=seq(0,100,length.out = 5))
 means <- aggregate(prop.decomp~weeks*leaf.deployment, fm, FUN = 'mean')
 se <- aggregate(prop.decomp~weeks*leaf.deployment, fm, FUN = 'sd')
 means$se <- 1.96*se$prop.decomp/sqrt(nrow(se))
@@ -156,51 +161,18 @@ tp4$damage.area <- tp4$damage.area*100
 plot(prop.decomp~damage.area,tp4,type='n',yaxt='n',xaxt='n',xlim=range(tp4$damage.area),ylim=range(tp4$prop.decomp),ann=F,bty='l')
 title(xlab='leaf damage (%)')
 axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
-title(ylab='proportion decomposed')
-axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,1,length.out = 5),labels=seq(0,1,length.out = 5))
+title(ylab='% decomposed')
+axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,100,length.out = 5),labels=seq(0,100,length.out = 5))
 points(prop.decomp~damage.area,tp4,col=alpha(cols[3],0.5),pch=16)
 legend('topright',bty='n',legend=expression(italic('day 28')))
 
-#getting coefs
-coefs <- rownames_to_column(as.data.frame(summary(t4.mod.fm)$coefficients[1])) %>%
-  rename(coef = rowname, value = cond.Estimate, se = cond.Std..Error) %>% select(coef:se) %>%
-  filter(coef != '(Intercept)')
-coefs %<>% mutate('lwr' = value-1.96*se, 'upr' = value+1.96*se)
-coefs <- coefs[c(2,5,1,3,4),]
-
-xmin <- min(coefs$lwr)
-xmax <- max(coefs$upr)
-
-par(mar=c(4,7,1,1),cex=1)
-
-plot(0,type='n',yaxt='n',xaxt='n',cex.axis=1,ann=F,bty='l',xlim=c(-6,2),ylim=c(0.5,5.5))
-axis(2,cex.axis=1,lwd=0,lwd.ticks=0,at=1:5,labels = rev(c('farm vs. forest','away vs. home','leaf damage','leaf land use','watershed')),las=1)
-abline(v=0,lty=2,lwd=1)
-title(xlab='parameter estimate')
-axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
-for(w in 1:5){
-  pt <- coefs[w,'value']
-  lwr <- coefs[w,'lwr']
-  upr <- coefs[w,'upr']
-  if(0 < upr & 0 > lwr){
-    alph <- 0.3
-  } else {
-    alph <- 1
-  }
-  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(rev(cols)[w],alph),lwd=3)
-  points(x=pt,y=w,pch=16,col=alpha(rev(cols)[w],alph),cex=2)
-}
-legend('topright',box.col=0,box.lwd=0,legend=expression(italic('fine mesh')))
-
-## bottom panels : coarse mesh
-
-par(mar=c(4,4,1,1))
+#cm
 
 plot(prop.decomp~weeks,cm,type='n',yaxt='n',xaxt='n',xlim=c(1,4),ylim=range(cm$prop.decomp),ann=F,bty='l')
 title(xlab='days in stream')
 axis(1,cex.axis=1,lwd=0,lwd.ticks=1,at=1:4,labels = seq(7,28,by=7))
-title(ylab='proportion decomposed')
-axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,1,length.out = 5),labels=seq(0,1,length.out = 5))
+title(ylab='% decomposed')
+axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,100,length.out = 5),labels=seq(0,100,length.out = 5))
 means <- aggregate(prop.decomp~weeks*land.use, cm, FUN = 'mean')
 se <- aggregate(prop.decomp~weeks*land.use, cm, FUN = 'sd')
 means$se <- 1.96*se$prop.decomp/sqrt(nrow(se))
@@ -219,8 +191,8 @@ legend('topright',bty='n',legend = '(b)', cex =1.2)
 plot(prop.decomp~weeks,cm,type='n',yaxt='n',xaxt='n',xlim=c(1,4),ylim=range(cm$prop.decomp),ann=F,bty='l')
 title(xlab='days in stream')
 axis(1,cex.axis=1,lwd=0,lwd.ticks=1,at=1:4,labels = seq(7,28,by=7))
-title(ylab='proportion decomposed')
-axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,1,length.out = 5),labels=seq(0,1,length.out = 5))
+title(ylab='% decomposed')
+axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,100,length.out = 5),labels=seq(0,100,length.out = 5))
 means <- aggregate(prop.decomp~weeks*leaf.deployment, cm, FUN = 'mean')
 se <- aggregate(prop.decomp~weeks*leaf.deployment, cm, FUN = 'sd')
 means$se <- 1.96*se$prop.decomp/sqrt(nrow(se))
@@ -240,11 +212,47 @@ tp4$damage.area <- tp4$damage.area*100
 plot(prop.decomp~damage.area,tp4,type='n',yaxt='n',xaxt='n',xlim=range(tp4$damage.area),ylim=range(tp4$prop.decomp),ann=F,bty='l')
 title(xlab='leaf damage (%)')
 axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
-title(ylab='proportion decomposed')
-axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,1,length.out = 5),labels=seq(0,1,length.out = 5))
+title(ylab='% decomposed')
+axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,100,length.out = 5),labels=seq(0,100,length.out = 5))
 points(prop.decomp~damage.area,tp4,col=alpha(cols[3],0.5),pch=16)
 
-#getting coefs
+dev.off()
+
+#### Figure 3 ####
+
+pdf('~/Desktop/Fig3.pdf',width=3,height = 3.5,pointsize = 8)
+par(mfrow=c(2,1),mar=c(4,7,1,1),cex=1)
+
+#getting coefs: fm
+coefs <- rownames_to_column(as.data.frame(summary(t4.mod.fm)$coefficients[1])) %>%
+  rename(coef = rowname, value = cond.Estimate, se = cond.Std..Error) %>% select(coef:se) %>%
+  filter(coef != '(Intercept)')
+coefs %<>% mutate('lwr' = value-1.96*se, 'upr' = value+1.96*se)
+coefs <- coefs[c(2,5,1,3,4),]
+
+xmin <- min(coefs$lwr)
+xmax <- max(coefs$upr)
+
+plot(0,type='n',yaxt='n',xaxt='n',cex.axis=1,ann=F,bty='l',xlim=c(-6,2),ylim=c(0.5,5.5))
+axis(2,cex.axis=1,lwd=0,lwd.ticks=0,at=1:5,labels = rev(c('farm vs. forest','away vs. home','leaf damage','leaf land use','watershed')),las=1)
+abline(v=0,lty=2,lwd=1)
+title(xlab='parameter estimate')
+axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
+for(w in 1:5){
+  pt <- coefs[w,'value']
+  lwr <- coefs[w,'lwr']
+  upr <- coefs[w,'upr']
+  if(0 < upr & 0 > lwr){
+    alph <- 0.3
+  } else {
+    alph <- 1
+  }
+  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(rev(cols)[w],alph),lwd=3)
+  points(x=pt,y=w,pch=16,col=alpha(rev(cols)[w],alph),cex=2)
+}
+legend('bottomleft',box.col=0,box.lwd=0,legend=expression(italic('fine-mesh')))
+
+#getting coefs: cm
 coefs <- rownames_to_column(as.data.frame(summary(t4.mod.cm)$coefficients[1])) %>%
   rename(coef = rowname, value = cond.Estimate, se = cond.Std..Error) %>% select(coef:se) %>%
   filter(coef != '(Intercept)') 
@@ -272,6 +280,6 @@ for(w in 1:5){
   segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(rev(cols)[w],alph),lwd=3)
   points(x=pt,y=w,pch=16,col=alpha(rev(cols)[w],alph),cex=2)
 }
-legend('topright',box.lwd=0,box.col=0,legend=expression(italic('coarse mesh')))
+legend('bottomleft',box.lwd=0,box.col=0,legend=expression(italic('coarse-mesh')))
 
-#dev.off()
+dev.off()
