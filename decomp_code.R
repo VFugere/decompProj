@@ -36,6 +36,9 @@ data$leaf.lu <- as.factor(data$leaf.lu)
 data$prop <- data$prct.mass.rem/100
 data$prop.decomp <- 1-data$prop
 
+#leaching un-adjusted for k calculation
+data$exp.dec <- with(data, (AFDM.after / dry.weight)*100)
+
 #transformation based on: https://stats.stackexchange.com/questions/31300/dealing-with-0-1-values-in-a-beta-regression
 data$rv <- 1-(data$prop*(nrow(data)-1)+0.5) / nrow(data)
 #1- because we want prop decomposed instead of prop left
@@ -77,6 +80,12 @@ fx.i <- update(fx.i, . ~ .  + (1|site) + (1|leaf.origin/tree/leaf)) #can't fit t
 
 fm <- filter(data, mesh.type == 'fine')
 cm <- filter(data, mesh.type == 'coarse')
+
+#calculating k/day
+summary(nls(exp.dec~100*(exp(1)^(-k*(weeks*7))),fm,start=list('k'= 0.01)))
+summary(nls(exp.dec~100*(exp(1)^(-k*(weeks*7))),cm,start=list('k'= 0.01)))
+summary(nls(exp.dec~100*(exp(1)^(-k*(weeks*7))),subset(cm, land.use == 'farm'),start=list('k'= 0.01)))
+summary(nls(exp.dec~100*(exp(1)^(-k*(weeks*7))),subset(cm, land.use == 'forest'),start=list('k'= 0.01)))
 
 ts.mod.fm <- glmmTMB(f2, fm, family=beta_family(link = "logit"))
 summary(ts.mod.fm)
