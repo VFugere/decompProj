@@ -93,23 +93,35 @@ summary(ts.mod.fm)
 ts.mod.cm <- glmmTMB(f2, cm, family=beta_family(link = "logit"))
 summary(ts.mod.cm)
 
-rownames_to_column(as.data.frame(summary(ts.mod.fm)$coefficients[1])) %>% write_csv(., '~/Desktop/fmmod.csv')
-rownames_to_column(as.data.frame(summary(ts.mod.cm)$coefficients[1])) %>% write_csv(., '~/Desktop/cmmod.csv')
+# #saving model results for Table 1
+# rownames_to_column(as.data.frame(summary(ts.mod.fm)$coefficients[1])) %>% write_csv(., '~/Desktop/fmmod.csv')
+# rownames_to_column(as.data.frame(summary(ts.mod.cm)$coefficients[1])) %>% write_csv(., '~/Desktop/cmmod.csv')
 
 fm.end <- filter(fm, weeks == 4)
 cm.end <- filter(cm, weeks == 4)
 
-#regression trees
-fit.fm <- ctree(rv ~ dmg+lu+ha+wks+wtr+leaf.lu+lf.lu, data = fm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
-plot(fit.fm, inner_panel=node_inner(fit.fm,pval = T),
-     terminal_panel=node_boxplot(fit.fm, width=0.4,fill='white',ylines=3,id=F))
-fit.cm <- ctree(rv ~ dmg+lu+ha+wks+wtr+leaf.lu+lf.lu, data = cm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
-plot(fit.cm, inner_panel=node_inner(fit.cm,pval = T),
-     terminal_panel=node_boxplot(fit.cm, width=0.4,fill='white',ylines=3,id=F))
-#the only thing that matters if land use for CM bags
+# #regression trees
+# fit.fm <- ctree(rv ~ dmg+lu+ha+wks+wtr+leaf.lu+lf.lu, data = fm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
+# plot(fit.fm, inner_panel=node_inner(fit.fm,pval = T),
+#      terminal_panel=node_boxplot(fit.fm, width=0.4,fill='white',ylines=3,id=F))
+# fit.cm <- ctree(rv ~ dmg+lu+ha+wks+wtr+leaf.lu+lf.lu, data = cm.end, controls = ctree_control(minsplit = 1, testtype = 'MonteCarlo'))
+# plot(fit.cm, inner_panel=node_inner(fit.cm,pval = T),
+#      terminal_panel=node_boxplot(fit.cm, width=0.4,fill='white',ylines=3,id=F))
+# #the only thing that matters is land use for CM bags
 
 t4.mod.fm <- glmmTMB(fx, fm.end, family=beta_family(link = "logit"))
 summary(t4.mod.fm)
+
+# #removing site random effect and treating as fixed effect
+# fx2 <- formula(rv ~ 1 + dmg + wtr + ha + lu + lf.lu)
+# fx2 <- update(fx2, . ~ . + (1|leaf.origin/tree/leaf))
+# t4.mod.fm2 <- glmmTMB(fx2, fm.end, family=beta_family(link = "logit"))
+# summary(t4.mod.fm2)
+# #effect of land use only significant in one watershed
+# 
+# plot(fitted(t4.mod.fm)~fm.end$rv, pch=16, col=fm.end$site_f)
+# plot(fitted(t4.mod.fm2)~fm.end$rv, pch=16, col=fm.end$site_f)
+# #fit is identical
 
 t4.mod.cm <- glmmTMB(fx, cm.end, family=beta_family(link = "logit"))
 summary(t4.mod.cm)
