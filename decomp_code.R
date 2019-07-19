@@ -72,9 +72,7 @@ f2 <- update(f1, . ~ . + (wks|site) + (wks|leaf.origin/tree/leaf))
 #model with final time point only
 
 fx <- formula(rv ~ 1 + dmg + wtr + ha + lu + lf.lu) 
-fx.i <- update(fx, . ~ .:.)
 fx <- update(fx, . ~ . + (1|site) + (1|leaf.origin/tree/leaf))
-fx.i <- update(fx.i, . ~ .  + (1|site) + (1|leaf.origin/tree/leaf)) #can't fit this model, not enough data
 
 #### models ####
 
@@ -96,6 +94,19 @@ summary(ts.mod.cm)
 # #saving model results for Table 1
 # rownames_to_column(as.data.frame(summary(ts.mod.fm)$coefficients[1])) %>% write_csv(., '~/Desktop/fmmod.csv')
 # rownames_to_column(as.data.frame(summary(ts.mod.cm)$coefficients[1])) %>% write_csv(., '~/Desktop/cmmod.csv')
+
+# #interaction model
+# f3 <- formula(rv ~ wks + dmg + ha + lu + (wks | site) + (wks | leaf.origin/tree/leaf) +
+#                 wks:dmg + wks:ha + wks:lu + dmg:ha + dmg:lu + ha:lu +
+#                 dmg:ha:wks + dmg:lu:wks + ha:lu:wks)
+# summary(glmmTMB(f3, fm, family=beta_family(link = "logit"))) #no higher-order interactions
+# summary(glmmTMB(f3, cm, family=beta_family(link = "logit")))
+# #does not converge, going Bayesian
+# library(brms)
+# m1 <- brm(f3, cm, family=beta_family(link = "logit"))
+# summary(m1)
+# plot(m1)
+# #no higher-order interactions
 
 fm.end <- filter(fm, weeks == 4)
 cm.end <- filter(cm, weeks == 4)
@@ -128,6 +139,17 @@ summary(t4.mod.cm)
 
 fm$prop.decomp <- fm$prop.decomp*100
 cm$prop.decomp <- cm$prop.decomp*100
+
+# #interaction models with factors of interest (not enough data to add all factors)
+# fx.i <- formula(rv ~ dmg + ha + lu + (1 | site) + (1 | leaf.origin/tree/leaf) + 
+#                   dmg:ha + dmg:lu + ha:lu)
+# summary(glmmTMB(fx.i, fm.end, family=beta_family(link = "logit")))
+# summary(glmmTMB(fx.i, cm.end, family=beta_family(link = "logit")))
+# #convergence problems again
+# m1 <- brm(fx.i, cm.end, family=beta_family(link = "logit"),iter=4000,thin=2)
+# summary(m1)
+# plot(m1)
+# #no significant two-way interactions
 
 #### Figure 2 ####
 
