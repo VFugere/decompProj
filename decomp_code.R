@@ -54,6 +54,25 @@ data$lf.lu <- relevel(data$leaf.lu, ref = 'forest')
 data$lf.dmg <- rescale(data$avg.dmg, c(0,1))
 data$tree.dmg <- rescale(data$tree.avg.dmg, c(0,1))
 
+#### is leaf mass different among treatments? ####
+
+#data$dm <- data$dry.weight
+#
+# mean(data$dm)
+# sd(data$dm)
+# sd(data$dm)/sqrt(nrow(data)) #se
+# range(data$dm)
+# 
+# anova(lm(dm~lu,data))
+# anova(lm(dm~ha,data))
+# summary(lm(dm~dmg,data))
+# plot(dm~dmg,data)
+# #relationship driven by high-leverage outlier
+# data2 <- data[data$dmg < 0.95,]
+# anova(lm(dm~lu,data2))
+# anova(lm(dm~ha,data2))
+# summary(lm(dm~dmg,data2))
+
 #### setting up models ####
 
 #collinearity
@@ -75,6 +94,8 @@ fx <- formula(rv ~ 1 + dmg + wtr + ha + lu + lf.lu)
 fx <- update(fx, . ~ . + (1|site) + (1|leaf.origin/tree/leaf))
 
 #### models ####
+
+data$mass.init <- rescale(data$leaching.adj.dry.weight, c(0,1))
 
 fm <- filter(data, mesh.type == 'fine')
 cm <- filter(data, mesh.type == 'coarse')
@@ -150,6 +171,22 @@ cm$prop.decomp <- cm$prop.decomp*100
 # summary(m1)
 # plot(m1)
 # #no significant two-way interactions
+
+# # effect of starting AFDM on decomp
+# 
+# summary(lm(rv~mass.init*weeks,fm))
+# summary(lm(rv~mass.init*weeks,cm))
+# summary(lm(rv~mass.init,fm.end))
+# summary(lm(rv~mass.init,cm.end))
+# 
+# pdf('~/Desktop/FigS1.pdf',width=5.5,height = 2.8,pointsize = 8)
+# par(mfrow=c(1,2),cex=1)
+# plot(rv~mass.init,fm.end,xlab = 'initial mass', ylab = 'proportion decomposed',bty='l')
+# title(main='fine mesh',cex=1)
+# plot(rv~mass.init,cm.end,xlab = 'initial mass', ylab = 'proportion decomposed',bty='l')
+# title(main='coarse mesh',cex=1)
+# dev.off()
+# par(mfrow=c(1,1))
 
 #### Figure 2 ####
 
