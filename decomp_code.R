@@ -10,6 +10,7 @@ library(magrittr)
 library(plotrix)
 library(party)
 library(devtools)
+library(performance)
 source_url('https://raw.githubusercontent.com/VFugere/Rfuncs/master/vif.R')
 source_url('https://raw.githubusercontent.com/VFugere/Rfuncs/master/utils.R')
 
@@ -188,9 +189,67 @@ cm$prop.decomp <- cm$prop.decomp*100
 # dev.off()
 # par(mfrow=c(1,1))
 
+### wtrshed as random effect as asked by Editor, remove leaf land use
+
+f0 <- formula(rv ~ 1 + wks + dmg + ha + lu)
+f1 <- update(f0, . ~ wks * .)
+f2 <- update(f1, . ~ . + (1|watershed/site) + (1|leaf.origin/tree/leaf))
+
+ts.mod.fm <- glmmTMB(f2, fm, family=beta_family(link = "logit"))
+summary(ts.mod.fm)
+
+ts.mod.cm <- glmmTMB(f2, cm, family=beta_family(link = "logit"))
+summary(ts.mod.cm)
+
+#saving model results for Table 1
+rownames_to_column(as.data.frame(summary(ts.mod.fm)$coefficients[1])) %>% 
+  bind_rows(rownames_to_column(as.data.frame(summary(ts.mod.cm)$coefficients[1]))) %>%
+  write_csv(., '~/Desktop/tsmod.csv')
+
+fx<- formula(rv ~ dmg + ha + lu + (1 | wtr/site) + (1 | leaf.origin/tree/leaf))
+
+t4.mod.fm <- glmmTMB(fx, fm.end, family=beta_family(link = "logit"))
+summary(t4.mod.fm)
+
+t4.mod.cm <- glmmTMB(fx, cm.end, family=beta_family(link = "logit"))
+summary(t4.mod.cm)
+plot(resid(t4.mod.cm)~fitted(t4.mod.cm))
+plot(fitted(t4.mod.cm) ~ cm.end$rv)
+
+# #### veryfing that I get similar coefficients with a bayesian model with strong-ish priors for random effects
+# 
+# library(brms)
+# get_prior(fx,cm.end,family='beta')
+# priorz <- prior_string("cauchy(0, 1)", class = "sd") #helps random effects converging on small sd
+# 
+# mod1 <- brm(f2, fm, family='beta',cores=2, iter=8000,prior=priorz)
+# mod2 <- brm(f2, cm, family='beta',cores=2, iter=8000,prior=priorz)
+# mod3 <- brm(fx, fm.end, family='beta',cores=2, iter=8000,prior=priorz)
+# mod4 <- brm(fx, cm.end, family='beta',cores=2, iter=8000,prior=priorz)
+# 
+# plot(mod1)
+# summary(mod1);summary(ts.mod.fm)
+# plot(fitted(mod1)[,1] ~ fm$rv)
+# pp_check(mod1)
+# 
+# plot(mod2)
+# summary(mod2);summary(ts.mod.cm)
+# plot(fitted(mod2)[,1] ~ cm$rv)
+# pp_check(mod2)
+# 
+# plot(mod3)
+# summary(mod3);summary(t4.mod.fm)
+# plot(fitted(mod3)[,1] ~ fm.end$rv)
+# pp_check(mod3)
+# 
+# plot(mod4)
+# summary(mod4);summary(t4.mod.cm)
+# plot(fitted(mod4)[,1] ~ cm.end$rv)
+# pp_check(mod4)
+
 #### Figure 2 ####
 
-pdf('~/Desktop/Fig2.pdf',width=4.5,height = 3.5,pointsize = 8)
+#pdf('~/Desktop/Fig2.pdf',width=4.5,height = 3.5,pointsize = 8)
 par(mfrow=c(2,3),mar=c(4,4,1,1),cex=1)
 
 #fm
@@ -296,59 +355,50 @@ title(ylab='% decomposed')
 axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=seq(0,100,length.out = 5),labels=seq(0,100,length.out = 5))
 points(prop.decomp~damage.area,tp4,col=alpha(cols[3],0.5),pch=16)
 
-dev.off()
+#dev.off()
 
 #### Figure 3 ####
 
-pdf('~/Desktop/Fig3.pdf',width=3,height = 3.5,pointsize = 8)
-par(mfrow=c(2,1),mar=c(4,7,1,1),cex=1)
+pdf('~/Desktop/Fig3.pdf',width=3,height = 2.5,pointsize = 8)
+par(mfrow=c(1,1),mar=c(4,7,1,1),cex=1)
+
+plot(0,type='n',yaxt='n',xaxt='n',cex.axis=1,ann=F,bty='l',xlim=c(-6,2),ylim=c(0.5,6.5))
+#axis(2,cex.axis=1,lwd=0,lwd.ticks=0,at=1:5,labels = rev(c('farm vs. forest','away vs. home','leaf damage','leaf land use','watershed')),las=1)
+axis(2,cex.axis=1,lwd=0,lwd.ticks=0,at=1:6,labels = rev(c('farm vs. forest','away vs. home','leaf damage','farm vs. forest','away vs. home','leaf damage')),las=1)
+abline(v=0,lty=2,lwd=1)
+abline(h=3.5,lty=1,lwd=1)
+axis(2,cex.axis=1,lwd=0,lwd.ticks=1,at=3.5,labels = '')
+title(xlab='parameter estimate')
+axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
 
 #getting coefs: fm
 coefs <- rownames_to_column(as.data.frame(summary(t4.mod.fm)$coefficients[1])) %>%
   rename(coef = rowname, value = cond.Estimate, se = cond.Std..Error) %>% select(coef:se) %>%
   filter(coef != '(Intercept)')
 coefs %<>% mutate('lwr' = value-1.96*se, 'upr' = value+1.96*se)
-coefs <- coefs[c(2,5,1,3,4),]
+#coefs <- coefs[c(2,5,1,3,4),]
 
-xmin <- min(coefs$lwr)
-xmax <- max(coefs$upr)
-
-plot(0,type='n',yaxt='n',xaxt='n',cex.axis=1,ann=F,bty='l',xlim=c(-6,2),ylim=c(0.5,5.5))
-axis(2,cex.axis=1,lwd=0,lwd.ticks=0,at=1:5,labels = rev(c('farm vs. forest','away vs. home','leaf damage','leaf land use','watershed')),las=1)
-abline(v=0,lty=2,lwd=1)
-title(xlab='parameter estimate')
-axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
-for(w in 1:5){
-  pt <- coefs[w,'value']
-  lwr <- coefs[w,'lwr']
-  upr <- coefs[w,'upr']
+for(w in 4:6){
+  pt <- coefs[w-3,'value']
+  lwr <- coefs[w-3,'lwr']
+  upr <- coefs[w-3,'upr']
   if(0 < upr & 0 > lwr){
     alph <- 0.3
   } else {
     alph <- 1
   }
-  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(rev(cols)[w],alph),lwd=3)
-  points(x=pt,y=w,pch=16,col=alpha(rev(cols)[w],alph),cex=2)
+  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(cols[w-3],alph),lwd=3)
+  points(x=pt,y=w,pch=16,col=alpha(cols[w-3],alph),cex=2)
 }
-legend('bottomleft',box.col=0,box.lwd=0,legend=expression(italic('fine-mesh')))
+legend('topleft',bty='n',legend=expression(italic('fine-mesh')))
 
 #getting coefs: cm
 coefs <- rownames_to_column(as.data.frame(summary(t4.mod.cm)$coefficients[1])) %>%
   rename(coef = rowname, value = cond.Estimate, se = cond.Std..Error) %>% select(coef:se) %>%
   filter(coef != '(Intercept)') 
 coefs %<>% mutate('lwr' = value-1.96*se, 'upr' = value+1.96*se)
-coefs <- coefs[c(2,5,1,3,4),]
 
-xmin <- min(coefs$lwr)
-xmax <- max(coefs$upr)
-
-par(mar=c(4,7,1,1))
-plot(0,type='n',yaxt='n',xaxt='n',cex.axis=1,ann=F,bty='l',xlim=c(-6,2),ylim=c(0.5,5.5))
-axis(2,cex.axis=1,lwd=0,lwd.ticks=0,at=1:5,labels = rev(c('farm vs. forest','away vs. home','leaf damage','leaf land use','watershed')),las=1)
-abline(v=0,lty=2,lwd=1)
-title(xlab='parameter estimate')
-axis(1,cex.axis=1,lwd=0,lwd.ticks=1)
-for(w in 1:5){
+for(w in 1:3){
   pt <- coefs[w,'value']
   lwr <- coefs[w,'lwr']
   upr <- coefs[w,'upr']
@@ -357,9 +407,9 @@ for(w in 1:5){
   } else {
     alph <- 1
   }
-  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(rev(cols)[w],alph),lwd=3)
-  points(x=pt,y=w,pch=16,col=alpha(rev(cols)[w],alph),cex=2)
+  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(cols[w],alph),lwd=3)
+  points(x=pt,y=w,pch=16,col=alpha(cols[w],alph),cex=2)
 }
-legend('bottomleft',box.lwd=0,box.col=0,legend=expression(italic('coarse-mesh')))
+legend('bottomleft',bty='n',legend=expression(italic('coarse-mesh')))
 
 dev.off()
