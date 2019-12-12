@@ -14,7 +14,7 @@ library(performance)
 source_url('https://raw.githubusercontent.com/VFugere/Rfuncs/master/vif.R')
 source_url('https://raw.githubusercontent.com/VFugere/Rfuncs/master/utils.R')
 
-cols <- brewer.pal(5, 'Dark2')
+cols <- brewer.pal(3, 'Dark2')
 
 #### load and format data ####
 
@@ -387,8 +387,8 @@ for(w in 4:6){
   } else {
     alph <- 1
   }
-  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(cols[w-3],alph),lwd=3)
-  points(x=pt,y=w,pch=16,col=alpha(cols[w-3],alph),cex=2)
+  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(rev(cols)[w-3],alph),lwd=3)
+  points(x=pt,y=w,pch=16,col=alpha(rev(cols)[w-3],alph),cex=2)
 }
 legend('topleft',bty='n',legend=expression(italic('fine-mesh')))
 
@@ -407,8 +407,8 @@ for(w in 1:3){
   } else {
     alph <- 1
   }
-  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(cols[w],alph),lwd=3)
-  points(x=pt,y=w,pch=16,col=alpha(cols[w],alph),cex=2)
+  segments(x0=lwr,x1=upr,y0=w,y1=w,col=alpha(rev(cols)[w],alph),lwd=3)
+  points(x=pt,y=w,pch=16,col=alpha(rev(cols)[w],alph),cex=2)
 }
 legend('bottomleft',bty='n',legend=expression(italic('coarse-mesh')))
 
