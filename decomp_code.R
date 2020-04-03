@@ -102,6 +102,7 @@ fm <- filter(data, mesh.type == 'fine')
 cm <- filter(data, mesh.type == 'coarse')
 
 #calculating k/day
+summary(nls(exp.dec~100*(exp(1)^(-k*(weeks*7))),data,start=list('k'= 0.01)))
 summary(nls(exp.dec~100*(exp(1)^(-k*(weeks*7))),fm,start=list('k'= 0.01)))
 summary(nls(exp.dec~100*(exp(1)^(-k*(weeks*7))),cm,start=list('k'= 0.01)))
 summary(nls(exp.dec~100*(exp(1)^(-k*(weeks*7))),subset(cm, land.use == 'farm'),start=list('k'= 0.01)))
