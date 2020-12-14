@@ -74,6 +74,14 @@ data$tree.dmg <- rescale(data$tree.avg.dmg, c(0,1))
 # anova(lm(dm~ha,data2))
 # summary(lm(dm~dmg,data2))
 
+#### calculations for HFA meta-analysis
+
+sub <- data %>% filter(weeks == 4) %>% select(leaf.origin:watershed,prop.decomp)
+sub$ml <- sub$prop.decomp*100
+
+sub <- sub %>% group_by(leaf.origin,site,mesh.type) %>% summarize(mean = mean(ml), sd = sd(ml), n = n())
+writexl::write_xlsx(sub, '~/Desktop/hfs_meta.xlsx')
+
 #### setting up models ####
 
 #collinearity
