@@ -76,10 +76,12 @@ data$tree.dmg <- rescale(data$tree.avg.dmg, c(0,1))
 
 #### calculations for HFA meta-analysis
 
-sub <- data %>% filter(weeks == 4) %>% select(leaf.origin:watershed,prop.decomp)
+sub <- data %>% select(leaf.origin:watershed,prop.decomp)
 sub$ml <- sub$prop.decomp*100
 
-sub <- sub %>% group_by(leaf.origin,site,mesh.type) %>% summarize(mean = mean(ml), sd = sd(ml), n = n())
+sub <- sub %>% group_by(weeks,leaf.origin,site,mesh.type) %>% summarize(mean = mean(ml), n = n(), sd = sd(ml))
+
+
 writexl::write_xlsx(sub, '~/Desktop/hfs_meta.xlsx')
 
 #### setting up models ####
